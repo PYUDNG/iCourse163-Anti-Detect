@@ -25,8 +25,9 @@
 		});
 
 		// Protect addEventListener & removeEventListener
+		defineProperty(Node.prototype, 'addEventListener', addEventListener);
 		for (const func of ['createElement', 'createElementNS', 'querySelector', 'querySelectorAll', 'getElementById', 'getElementsByClassName', 'getElementsByName', 'getElementsByTagName', 'getElementsByTagNameNS']) {
-			hookDocFunc(func);
+			hookAPIFunc(func);
 		}
 
 		// Protect root & root-like elements
@@ -35,18 +36,22 @@
 			typeof elm === 'object' && elm !== null && hookElm(elm);
 		}
 
-		function hookDocFunc(funcName) {
-			defineProperty(document, funcName, function() {
-				let value = UNPOLLUTED['contentDocument.'+funcName].apply(document, Array.from(arguments));
+		function hookAPIFunc(funcName) {
+			for (const api of ['Document', 'Element']) {
+				const API = window[api];
+				const proto = API.prototype;
+				proto.hasOwnProperty(funcName) && defineProperty(proto, funcName, function() {
+					let value = UNPOLLUTED['contentWindow.'+api+'.prototype.'+funcName].apply(this, Array.from(arguments));
 
-				if (value instanceof NodeList) {
-					value = Array.prototype.map.call(value, (elm) => (hookElm(elm)));
-					value.item = (i) => (i < value.length ? value[i] : null);
-				} else if (value instanceof EventTarget) {
-					value = hookElm(value);
-				}
-				return value;
-			});
+					if (value instanceof NodeList) {
+						value = Array.prototype.map.call(value, (elm) => (hookElm(elm)));
+						value.item = (i) => (i < value.length ? value[i] : null);
+					} else if (value instanceof EventTarget) {
+						value = hookElm(value);
+					}
+					return value;
+				});
+			}
 		}
 
 		function hookElm(elm) {
@@ -54,25 +59,10 @@
 				return elm;
 			}
 
-			const ETPtt = UNPOLLUTED['contentWindow.EventTarget.prototype'];
 			defineProperty(elm, 'addEventListener', addEventListener);
-			defineProperty(elm, 'removeEventListener', ETPtt.removeEventListener);
+			defineProperty(elm, 'removeEventListener', UNPOLLUTED['contentWindow.EventTarget.prototype.removeEventListener']);
 			defineProperty(elm, '_protected', true);
 			return elm;
-
-			function addEventListener(type, listener) {
-				const banlist = ['function(a5){if(', 'function(a6){a6'];
-				for (const bancode of banlist) {
-					if (type === 'click' && listener.toString().startsWith(bancode)) {
-						return;
-					}
-				}
-				return ETPtt.addEventListener.apply(elm, Array.from(arguments));
-			}
-
-			function toString(o) {
-				return UNPOLLUTED['contentWindow.Object.prototype.toString'].call(o);
-			}
 		}
 
 		function defineProperty(obj, prop, value) {
@@ -82,6 +72,20 @@
 				configurable: false,
 				enumerable: true
 			});
+		}
+
+		function addEventListener(type, listener) {
+			const banlist = ['function(a5){if(', 'function(a6){a6'];
+			for (const bancode of banlist) {
+				if (type === 'click' && listener.toString().startsWith(bancode)) {
+					return;
+				}
+			}
+			return UNPOLLUTED['contentWindow.EventTarget.prototype.addEventListener'].apply(this, Array.from(arguments));
+		}
+
+		function toString(o) {
+			return UNPOLLUTED['contentWindow.Object.prototype.toString'].call(o);
 		}
 	} catch (err) {
 		throw err;
