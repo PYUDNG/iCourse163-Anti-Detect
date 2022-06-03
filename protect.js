@@ -1,5 +1,6 @@
 (function(window, document) {
 	/* Protect.js by PY-DNG */
+	/* !IMPORTANT! MAKE SURE THIS CODE IS EXECUTED BEFORE WINDOW ONLOAD !IMPORTANT! */
 
 	try {
 		// Unpolluted resources
